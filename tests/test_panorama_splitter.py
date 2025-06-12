@@ -5,7 +5,7 @@ from PIL import Image
 import tempfile
 import shutil
 
-from image import (
+from pano_splitter import (
     PanoramaImage,
     PerspectiveImage,
     PerspectiveMetadata,
