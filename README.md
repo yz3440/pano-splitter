@@ -25,6 +25,52 @@ uv sync
 uv pip install -e .
 ```
 
+## Command Line Usage
+
+This project provides two CLI scripts for batch and single-image processing:
+
+- `pano_splitter.py` — Batch process all images in a directory
+- `single_pano_splitter.py` — Process a single image for parameter tuning
+
+### Arguments
+
+- `--input_path` (batch) / `--input_image` (single): Path to input image(s)
+- `--output_path`: Output directory (default: `output_images` or `output_image`)
+- `--output_format`: Output image format (`png`, `jpg`, `jpeg`)
+- `--FOV`: Field of view in degrees (default: 90 for batch, 100 for single)
+- `--output_width`, `--output_height`: Output image size (default: 1000x1500)
+- `--pitch`: Single pitch angle (vertical, default: 90)
+- `--list-of-pitch`: List of pitch angles (vertical, e.g. `--list-of-pitch 60 90 120`). **Takes precedence over `--pitch` if provided.**
+- `--list-of-yaw`: List of yaw angles (horizontal, e.g. `--list-of-yaw 0 60 120 180 240 300`)
+
+### Example: Batch Processing
+
+```bash
+# Single pitch (default)
+python pano_splitter.py --input_path input_images --pitch 90
+
+# Multiple pitches
+python pano_splitter.py --input_path input_images --list-of-pitch 60 90 120
+
+# Multiple pitches and custom yaws
+python pano_splitter.py --input_path input_images --list-of-pitch 60 90 120 --list-of-yaw 0 90 180 270
+```
+
+### Example: Single Image Processing
+
+```bash
+# Single pitch (default)
+python single_pano_splitter.py --input_image panorama.jpg --pitch 90
+
+# Multiple pitches
+python single_pano_splitter.py --input_image panorama.jpg --list-of-pitch 70 90 110
+```
+
+### Notes
+
+- If both `--pitch` and `--list-of-pitch` are provided, `--list-of-pitch` is used.
+- Output files are named as `image_pitch{pitch}_yaw{yaw}_fov{FOV}.{ext}` for all pitch/yaw combinations.
+
 ## Quick Start
 
 ```python
