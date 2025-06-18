@@ -145,6 +145,36 @@ python benchmark_performance.py \
    Throughput: 3.88x improvement
 ```
 
+## Testing
+
+Run the test suite to verify functionality:
+
+```bash
+# Run all tests (recommended method)
+PYTHONPATH=. uv run pytest tests/ -v
+
+# Alternative: Install package in editable mode first, then run tests
+uv pip install -e .
+uv run pytest tests/ -v
+
+# Run specific test file
+PYTHONPATH=. uv run pytest tests/test_panorama_splitter.py -v
+
+# Run tests with coverage
+PYTHONPATH=. uv run pytest tests/ --cov=pano_splitter -v
+
+# Run tests matching a pattern
+PYTHONPATH=. uv run pytest tests/ -k "test_perspective" -v
+```
+
+The test suite includes:
+
+- Core functionality tests
+- Perspective generation validation
+- Image processing accuracy tests
+- Performance regression tests
+- Command-line interface tests
+
 ## Technical Details
 
 ### Parallelization Strategy
