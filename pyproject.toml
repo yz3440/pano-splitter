@@ -20,7 +20,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["image"]
+packages = ["pano_splitter"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
