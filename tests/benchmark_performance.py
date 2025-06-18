@@ -91,8 +91,15 @@ def main():
         description="Benchmark sequential vs parallel panorama processing"
     )
 
+    # Get the default test image path
+    script_dir = Path(__file__).parent
+    default_test_image = script_dir / "test_pano.jpg"
+
     parser.add_argument(
-        "--input_image", type=str, required=True, help="Path to test panorama image"
+        "--input_image",
+        type=str,
+        default=str(default_test_image),
+        help=f"Path to test panorama image (default: {default_test_image})",
     )
 
     parser.add_argument(
@@ -129,6 +136,11 @@ def main():
     input_path = Path(args.input_image)
     if not input_path.exists():
         print(f"❌ Error: Input image '{input_path}' does not exist.")
+        if str(input_path) == str(default_test_image):
+            print(f"💡 Make sure the test image exists at: {default_test_image}")
+            print(
+                "   You can also specify a custom image with --input_image /path/to/image.jpg"
+            )
         return
 
     # Set up test perspectives

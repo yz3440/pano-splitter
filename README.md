@@ -124,15 +124,20 @@ python benchmark_performance.py \
 The included benchmark script helps you find optimal settings:
 
 ```bash
-# Quick benchmark
-python benchmark_performance.py --input_image panorama.jpg
+# Quick benchmark (uses tests/test_pano.jpg automatically)
+PYTHONPATH=. python tests/benchmark_performance.py
 
-# Detailed benchmark with custom parameters
-python benchmark_performance.py \
-    --input_image panorama.jpg \
+# Benchmark with custom parameters
+PYTHONPATH=. python tests/benchmark_performance.py \
     --num_perspectives 24 \
     --iterations 5 \
     --max_workers 8
+
+# Benchmark with custom image
+PYTHONPATH=. python tests/benchmark_performance.py \
+    --input_image ./my_panorama.jpg \
+    --num_perspectives 12 \
+    --iterations 3
 ```
 
 ### Sample Benchmark Results
