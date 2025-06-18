@@ -2,6 +2,7 @@ import numpy as np
 from dataclasses import dataclass
 from PIL import Image
 from typing import List, Any, Union, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from . import e2p
 
 
@@ -106,3 +107,44 @@ class PanoramaImage:
             perspective_metadata=perspective,
         )
         return perspective_image
+
+    def generate_perspective_images_batch(
+        self, perspectives: List[PerspectiveMetadata], max_workers: int = None
+    ) -> List[PerspectiveImage]:
+        """
+        Generate multiple perspective images in parallel for better performance.
+
+        Args:
+            perspectives: List of perspective metadata for different views
+            max_workers: Maximum number of worker threads (default: auto-detect)
+
+        Returns:
+            List of PerspectiveImage objects
+        """
+        if self.loaded_image_array is None:
+            raise ValueError("Image has not been loaded")
+
+        def generate_single_perspective(perspective_metadata):
+            return PerspectiveImage(
+                source_panorama_image_array=self.loaded_image_array,
+                panorama_id=self.panorama_id,
+                perspective_metadata=perspective_metadata,
+            )
+
+        # Use ThreadPoolExecutor for CPU-bound perspective generation
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(generate_single_perspective, perspective)
+                for perspective in perspectives
+            ]
+
+            perspective_images = []
+            for future in as_completed(futures):
+                try:
+                    perspective_image = future.result()
+                    perspective_images.append(perspective_image)
+                except Exception as e:
+                    print(f"Error generating perspective image: {e}")
+                    continue
+
+        return perspective_images

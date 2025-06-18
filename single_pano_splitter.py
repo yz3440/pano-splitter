@@ -3,13 +3,17 @@
 Single Panorama to Planar Image Converter using pano_splitter implementation
 
 This script converts a single 360-degree panoramic image into planar images using the
-same API as the original single_image.py but with improved performance using OpenCV.
+same API as the original single_image.py but with improved performance using OpenCV
+and parallel processing for better performance.
 """
 
 import argparse
 from pathlib import Path
 import cv2
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from typing import List, Tuple
 
 from pano_splitter.models import PanoramaImage, PerspectiveMetadata
 
@@ -42,50 +46,74 @@ def check_yaw(values: list[int]):
             )
 
 
-def panorama_to_plane(
-    panorama_path: str, FOV: int, output_size: tuple, yaw: float, pitch: float
-) -> np.ndarray:
+def process_single_perspective(
+    panorama_array: np.ndarray,
+    panorama_id: str,
+    FOV: int,
+    output_size: tuple,
+    yaw: float,
+    pitch: float,
+    output_path: Path,
+    output_format: str,
+    pitch_angle: int,
+) -> Tuple[bool, str]:
     """
-    Convert panorama to planar image using pano_splitter implementation.
+    Process a single perspective view of a panorama.
 
     Args:
-        panorama_path: Path to the panorama image
+        panorama_array: Pre-loaded panorama image array
+        panorama_id: ID of the panorama
         FOV: Field of view in degrees
         output_size: (width, height) tuple for output image
         yaw: Yaw angle in degrees
-        pitch: Pitch angle in degrees (adjusted from original coordinate system)
+        pitch: Pitch angle in degrees
+        output_path: Output directory path
+        output_format: Output file format
+        pitch_angle: Original pitch angle for filename
 
     Returns:
-        Perspective image as numpy array
+        Tuple of (success, filename)
     """
-    # Load the panorama image
-    panorama = PanoramaImage(panorama_id=Path(panorama_path).stem, image=panorama_path)
+    try:
+        # Create panorama object from array (avoiding file I/O)
+        panorama = PanoramaImage(panorama_id=panorama_id, image=panorama_array)
 
-    # Create perspective metadata
-    # Note: The original implementation uses pitch differently, so we adjust here
-    # Original: pitch=90 is looking straight ahead, pitch=180-90=90 is used in calculation
-    # Our implementation: pitch=0 is looking straight ahead
-    adjusted_pitch = pitch - 90  # Convert from original coordinate system
+        # Create perspective metadata
+        adjusted_pitch = pitch - 90  # Convert from original coordinate system
 
-    perspective_metadata = PerspectiveMetadata(
-        pixel_width=output_size[0],
-        pixel_height=output_size[1],
-        horizontal_fov=FOV,
-        vertical_fov=FOV,  # Use same FOV for both dimensions
-        yaw_offset=yaw,
-        pitch_offset=adjusted_pitch,
-    )
+        perspective_metadata = PerspectiveMetadata(
+            pixel_width=output_size[0],
+            pixel_height=output_size[1],
+            horizontal_fov=FOV,
+            vertical_fov=FOV,
+            yaw_offset=yaw,
+            pitch_offset=adjusted_pitch,
+        )
 
-    # Generate perspective image
-    perspective_image = panorama.generate_perspective_image(perspective_metadata)
+        # Generate perspective image
+        perspective_image = panorama.generate_perspective_image(perspective_metadata)
+        output_image_array = perspective_image.get_perspective_image_array()
 
-    return perspective_image.get_perspective_image_array()
+        # Generate output image name
+        output_image_name = (
+            f"{panorama_id}_pitch{pitch_angle}_yaw{yaw}_fov{FOV}.{output_format}"
+        )
+        output_image_path = output_path / output_image_name
+
+        # Save the image using OpenCV
+        output_image_bgr = cv2.cvtColor(output_image_array, cv2.COLOR_RGB2BGR)
+        success = cv2.imwrite(str(output_image_path), output_image_bgr)
+
+        return success, output_image_name
+
+    except Exception as e:
+        return False, f"Error processing pitch {pitch_angle}, yaw {yaw}: {str(e)}"
 
 
 def main():
     # Create the parser
     parser = argparse.ArgumentParser(
-        description="Convert a single 360-degree panoramic image to planar images using pano_splitter."
+        description="Convert a single 360-degree panoramic image to planar images using pano_splitter with parallel processing."
     )
 
     # Add arguments - exactly the same as original single_image.py
@@ -133,6 +161,12 @@ def main():
         default=[0, 60, 120, 180, 240, 300],
         help="List of yaw angles (horizontal) e.g. --list-of-yaw 0 60 120 180 240 300",
     )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=None,
+        help="Maximum number of worker threads for parallel processing (default: auto-detect)",
+    )
 
     # Parse the arguments
     args = parser.parse_args()
@@ -176,48 +210,75 @@ def main():
     else:
         current_output_format = output_format
 
-    print(f"Processing: {input_image.name}")
-    print(f"Output directory: {output_path}")
-    print(f"Parameters: FOV={FOV}, pitch_angles={pitch_list}, yaw_angles={yaw_list}")
-    print(f"Output size: {args.output_width}x{args.output_height}")
+    print(f"📷 Processing: {input_image.name}")
+    print(f"📤 Output directory: {output_path}")
+    print(f"⚙️  Parameters: FOV={FOV}, pitch_angles={pitch_list}, yaw_angles={yaw_list}")
+    print(f"📏 Output size: {args.output_width}x{args.output_height}")
+    print(f"🔧 Max workers: {args.max_workers or 'auto'}")
 
-    processed_count = 0
+    start_time = time.time()
 
+    # Load the panorama image once
+    try:
+        panorama_image = cv2.imread(str(input_image))
+        panorama_array = cv2.cvtColor(panorama_image, cv2.COLOR_BGR2RGB)
+    except Exception as e:
+        print(f"❌ Failed to load image: {str(e)}")
+        return
+
+    # Create list of all perspective tasks
+    tasks = []
     for pitch_angle in pitch_list:
         for yaw in yaw_list:
+            pitch = 180 - pitch_angle  # Convert to original coordinate system
+            tasks.append((pitch_angle, yaw, pitch))
+
+    print(f"🎯 Generating {len(tasks)} perspective views...")
+    processed_count = 0
+
+    # Process perspectives in parallel using ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
+        # Submit all tasks
+        future_to_task = {}
+        for pitch_angle, yaw, pitch in tasks:
+            future = executor.submit(
+                process_single_perspective,
+                panorama_array,
+                file_name,
+                FOV,
+                output_size,
+                yaw,
+                pitch,
+                output_path,
+                current_output_format,
+                pitch_angle,
+            )
+            future_to_task[future] = (pitch_angle, yaw)
+
+        # Collect results
+        for future in as_completed(future_to_task):
+            pitch_angle, yaw = future_to_task[future]
             try:
-                # Convert to original coordinate system for internal calculations
-                pitch = 180 - pitch_angle
-
-                # Generate output image name (same format as original)
-                output_image_name = f"{file_name}_pitch{pitch_angle}_yaw{yaw}_fov{FOV}.{current_output_format}"
-                output_image_path = output_path / output_image_name
-
-                # Convert panorama to planar image
-                output_image_array = panorama_to_plane(
-                    str(input_image), FOV, output_size, yaw, pitch
-                )
-
-                # Save the image using OpenCV (faster than PIL)
-                # Convert RGB to BGR for OpenCV
-                output_image_bgr = cv2.cvtColor(output_image_array, cv2.COLOR_RGB2BGR)
-                success = cv2.imwrite(str(output_image_path), output_image_bgr)
-
+                success, result = future.result()
                 if success:
-                    print(f"  ✓ Saved: {output_image_name}")
+                    print(f"  ✓ Saved: {result}")
                     processed_count += 1
                 else:
-                    print(f"  ✗ Failed to save: {output_image_name}")
-
+                    print(f"  ✗ {result}")
             except Exception as e:
                 print(f"  ✗ Error processing pitch {pitch_angle}, yaw {yaw}: {str(e)}")
-                continue
 
+    elapsed_time = time.time() - start_time
+
+    print(f"\n🎉 Processing complete!")
     print(
-        f"\n🎉 Processing complete! Generated {processed_count} images from '{input_image.name}'."
+        f"📊 Generated {processed_count}/{len(tasks)} images from '{input_image.name}'"
     )
+    print(f"⏱️  Total time: {elapsed_time:.2f} seconds")
+    print(f"🚀 Average: {processed_count/elapsed_time:.2f} images/second")
+
     if processed_count == 0:
-        print("No images were processed. Please check:")
+        print("\n❌ No images were processed. Please check:")
         print("- Input image path is correct and file exists")
         print("- Input image is a valid panoramic image format (.jpg, .jpeg, .png)")
         print("- You have write permissions to the output directory")
