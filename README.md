@@ -1,5 +1,7 @@
 # Pano Splitter
 
+![Pano Splitter Diagram](./assets/pano-splitter-diagram.jpg)
+
 Convert panoramic images to perspective views with parallel processing.
 
 ## Features
@@ -81,5 +83,7 @@ PYTHONPATH=. uv run pytest tests/ --cov=pano_splitter -v
 ```
 
 ## GUI Version
+
+![GUI Screenshot](./assets/pano-splitter-gui.png)
 
 For a user-friendly graphical interface, see [README_GUI.md](README_GUI.md) or download the pre-built executable from releases.

@@ -1,5 +1,7 @@
 # Pano Splitter GUI
 
+![GUI Screenshot](./assets/pano-splitter-gui.png)
+
 Graphical interface for converting panoramic images to perspective views.
 
 ## Features
