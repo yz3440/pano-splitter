@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pano-splitter"
-version = "0.1.0"
+version = "0.0.1"
 description = "A tool for splitting panoramic images into perspective views"
 requires-python = ">=3.8"
 dependencies = [

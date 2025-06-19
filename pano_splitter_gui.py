@@ -37,10 +37,27 @@ except ImportError as e:
     sys.exit(1)
 
 
+def get_version():
+    """Get version from pyproject.toml using simple text parsing"""
+    try:
+        pyproject_path = Path(__file__).parent / "pyproject.toml"
+        if pyproject_path.exists():
+            with open(pyproject_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('version = "') and line.endswith('"'):
+                        # Extract version between quotes: version = "0.0.1"
+                        return line.split('"')[1]
+    except Exception:
+        pass
+    return "0.0.1"  # Fallback version
+
+
 class PanoSplitterGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Pano Splitter - Panoramic Image Converter")
+        version = get_version()
+        self.root.title(f"Pano Splitter v{version} - Panoramic Image Converter")
         self.root.geometry("1200x800")
 
         # Configure root grid
@@ -599,7 +616,8 @@ class PanoSplitterGUI:
         about_frame = ttk.LabelFrame(frame, text="About", padding=10)
         about_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=10)
 
-        about_text = """Pano Splitter GUI v1.0
+        version = get_version()
+        about_text = f"""Pano Splitter GUI v{version}
         
 A comprehensive tool for converting panoramic images into perspective views.
 

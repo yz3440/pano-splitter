@@ -312,7 +312,7 @@ For issues, feature requests, or questions:
 
 ## Version History
 
-### v1.0.0
+### v0.0.1
 
 - Initial GUI release
 - Single image processing
